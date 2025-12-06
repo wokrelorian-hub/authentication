@@ -29,8 +29,8 @@ const Input = React.forwardRef<HTMLInputElement, InputProps>(
               "h-14 px-4 pt-5 pb-2 text-base",
               "placeholder-transparent focus:ring-0 focus:outline-none transition-colors",
               
-              // BORDER LOGIC (Centralized Here):
-              // 1. Error? Force Red using v4 syntax (border-color!)
+              // BORDER LOGIC:
+              // 1. Error? Force Red (#E50914)
               // 2. Default? Grey (#8c8c8c) -> White on focus
               errorMessage 
                 ? "border-[#E50914]! focus:border-[#E50914]!" 
@@ -58,7 +58,7 @@ const Input = React.forwardRef<HTMLInputElement, InputProps>(
           </label>
         </div>
 
-        {/* Error Message Layout */}
+        {/* Error Message Layout - Simple Slide Down */}
         <AnimatePresence>
           {errorMessage && (
             <motion.div

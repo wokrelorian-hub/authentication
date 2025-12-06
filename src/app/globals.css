@@ -1,26 +1,90 @@
 @import "tailwindcss";
+@import "tw-animate-css";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
+/* 1. Plugins & Sources */
+@plugin "../hero"; 
+@source "../../node_modules/@heroui/theme/dist/**/*.{js,ts,jsx,tsx}";
 
+
+/* 3. Custom Variant for Dark Mode */
+@custom-variant dark (&:is(.dark *));
+
+/* 4. Color Variables (Your Cinematic Theme) */
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  /* ... mappings for shadcn ... */
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+/* 5. CSS Variables (The Values) */
+:root {
+  --radius: 0.5rem;
+
+  /* Cinematic Black Background */
+  --background: oklch(0.05 0 0); 
+  --foreground: oklch(0.985 0 0);
+
+  /* Netflix Red */
+  --primary: oklch(0.55 0.24 26.4);
+  --primary-foreground: oklch(1 0 0);
+
+  --card: oklch(0.12 0 0);
+  --card-foreground: oklch(0.985 0 0);
+  --popover: oklch(0.12 0 0);
+  --popover-foreground: oklch(0.985 0 0);
+  --secondary: oklch(0.269 0 0);
+  --secondary-foreground: oklch(0.985 0 0);
+  --muted: oklch(0.269 0 0);
+  --muted-foreground: oklch(0.708 0 0);
+  --accent: oklch(0.269 0 0);
+  --accent-foreground: oklch(0.985 0 0);
+  --destructive: oklch(0.577 0.245 27.325);
+  --border: oklch(1 0 0 / 15%);
+  --input: oklch(1 0 0 / 20%);
+  --ring: oklch(0.55 0.24 26.4);
+  /* Force Inter as the single font used across the app */
+  --font-sans: var(--font-inter);
+  --font-mono: var(--font-inter);
+  --default-font-family: var(--font-inter);
+  --default-mono-font-family: var(--font-inter);
+}
+
+.dark {
+  /* Same as root to prevent flashing */
+  --background: oklch(0.05 0 0);
+  --foreground: oklch(0.985 0 0);
+  --primary: oklch(0.55 0.24 26.4);
+  --primary-foreground: oklch(1 0 0);
+  --card: oklch(0.12 0 0);
+  --card-foreground: oklch(0.985 0 0);
+  --popover: oklch(0.12 0 0);
+  --popover-foreground: oklch(0.985 0 0);
+  --secondary: oklch(0.269 0 0);
+  --secondary-foreground: oklch(0.985 0 0);
+  --muted: oklch(0.269 0 0);
+  --muted-foreground: oklch(0.708 0 0);
+  --accent: oklch(0.269 0 0);
+  --accent-foreground: oklch(0.985 0 0);
+  --destructive: oklch(0.704 0.191 22.216);
+  --border: oklch(1 0 0 / 15%);
+  --input: oklch(1 0 0 / 20%);
+  --ring: oklch(0.55 0.24 26.4);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
   }
-}
-
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  body {
+    @apply bg-background text-foreground;
+  }
+  /* Ensure Inter is applied even if other font CSS loads later */
+  html, body {
+    font-family: var(--font-inter) !important;
+  }
 }

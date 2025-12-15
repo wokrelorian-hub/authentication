@@ -4,28 +4,29 @@ import { queryOne } from '@/lib/oracle';
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const { email, userID } = body; 
+    const { email, userID, fullName } = body; // 1. Accept fullName
 
     if (!email || !userID) {
       return NextResponse.json({ error: 'Missing data' }, { status: 400 });
     }
 
-    // 1. Check if they exist first (Safety Check)
+    // Check existence
     const checkSql = `SELECT user_id FROM users WHERE email = :email`;
-    const checkResult = await queryOne(checkSql, [email]);
+    const checkResult = await queryOne(checkSql, [email]) as { rows: unknown[] };
     
-    const rows = checkResult && typeof checkResult === 'object' && 'rows' in checkResult 
-      ? (checkResult as { rows: unknown[] }).rows 
-      : [];
+    const rows = checkResult?.rows || [];
 
     if (rows.length === 0) {
-      // 2. User is new! Insert them into Oracle.
+      // 2. Insert with Full Name
+      // We use (NVL or similar logic isn't needed if we pass empty string, but let's be clean)
       const insertSql = `
-        INSERT INTO users (user_id, email, role) 
-        VALUES (:id, :email, 'user')
+        INSERT INTO users (user_id, email, full_name, role) 
+        VALUES (:id, :email, :name, 'user')
       `;
-      await queryOne(insertSql, [userID, email]);
-      return NextResponse.json({ success: true, message: 'User created in Oracle' });
+      // Pass the fullName (or 'User' if missing)
+      await queryOne(insertSql, [userID, email, fullName || 'User']);
+      
+      return NextResponse.json({ success: true, message: 'User created' });
     }
 
     return NextResponse.json({ success: true, message: 'User already exists' });

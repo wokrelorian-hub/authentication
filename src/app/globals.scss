@@ -1,8 +1,16 @@
-/* Just our custom overrides now */
+/* Carbon Design System - White Theme Overrides */
 body {
-  background-color: #161616; /* Carbon Gray 100 */
-  color: #f4f4f4; /* Carbon Gray 10 */
+  background-color: #ffffff; /* Carbon White (Layer 01) */
+  color: #161616;            /* Carbon Gray 100 (Text Primary) */
   font-family: 'IBM Plex Sans', sans-serif;
   margin: 0;
   padding: 0;
+}
+
+/* Optional: Add a subtle background for the 'image' side of the split screen if no image is present yet */
+.login-brand-panel {
+  background-color: #f4f4f4; /* Carbon Gray 10 */
+  height: 100%;
+  width: 100%;
+  min-height: 100vh;
 }

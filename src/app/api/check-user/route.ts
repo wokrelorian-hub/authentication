@@ -1,6 +1,17 @@
 import { NextResponse } from 'next/server';
 import { queryOne } from '@/lib/oracle';
 
+// 1. Define a strict type for our DB result
+interface UserRow {
+  USER_ID: string;
+  FULL_NAME?: string;
+  full_name?: string; // Handle case-sensitivity
+}
+
+interface OracleResult {
+  rows: UserRow[];
+}
+
 export async function POST(request: Request) {
   try {
     const body = await request.json();
@@ -10,22 +21,25 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Email is required' }, { status: 400 });
     }
 
-    // SQL: Check if a user with this email exists in our USERS table
-    // We use :email to safely prevent SQL Injection (Security Best Practice)
-    const sql = `SELECT user_id FROM users WHERE email = :email`;
+    // 2. Fetch full_name along with user_id
+    const sql = `SELECT user_id, full_name FROM users WHERE email = :email`;
     const params = [email];
 
-    const result = await queryOne(sql, params);
+    const result = await queryOne(sql, params) as OracleResult; // Type Assertion
 
-    // Check if we found any rows
-    // In our helper, result.rows is the array of data
-    const rows = result && typeof result === 'object' && 'rows' in result 
-      ? (result as { rows: unknown[] }).rows 
-      : [];
+    // 3. Safe check using our Interface
+    const rows = result && result.rows ? result.rows : [];
 
-    const userExists = rows.length > 0;
+    if (rows.length > 0) {
+      const user = rows[0];
+      return NextResponse.json({ 
+        exists: true, 
+        // Oracle column names can be uppercase
+        name: user.FULL_NAME || user.full_name || '' 
+      });
+    }
 
-    return NextResponse.json({ exists: userExists });
+    return NextResponse.json({ exists: false });
 
   } catch (error: unknown) {
     console.error('Check User Error:', error);

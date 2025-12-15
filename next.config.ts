@@ -1,7 +1,7 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  /* config options here */
+  /* We don't need the sassOptions anymore */
 };
 
 export default nextConfig;

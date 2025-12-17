@@ -19,10 +19,17 @@ export default function Dashboard() {
     }
   }, [user, isInitialized, router]);
 
-  // Logout
+  // --- FIX: GRACEFUL LOGOUT ---
   const handleLogout = async () => {
-    await stytch.session.revoke();
-    router.replace('/');
+    try {
+      await stytch.session.revoke();
+    } catch { 
+      // FIX: Removed '(err)' here. 
+      // We don't need the error object, we just want to catch the failure.
+      console.log("User was already logged out on server.");
+    } finally {
+      router.replace('/');
+    }
   };
 
   // Register Passkey
@@ -30,7 +37,6 @@ export default function Dashboard() {
     setRegistering(true);
     try {
       await stytch.webauthn.register();
-      // The user object updates automatically, re-rendering the UI
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "Registration failed";
       console.error(err);
@@ -42,7 +48,6 @@ export default function Dashboard() {
 
   if (!isInitialized) return null;
 
-  // Check if user has already registered a passkey
   const hasPasskey = user?.webauthn_registrations && user.webauthn_registrations.length > 0;
 
   return (
@@ -68,7 +73,6 @@ export default function Dashboard() {
 
             {/* CONDITIONAL UI */}
             {hasPasskey ? (
-              // FIX: Now we actually use the Tag component!
               <Tag type="green" renderIcon={CheckmarkFilled} size="md">
                 Biometric Login is Active
               </Tag>

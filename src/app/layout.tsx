@@ -3,6 +3,8 @@ import '@carbon/styles/css/styles.css';
 
 import { Inter } from 'next/font/google';
 import StytchProviderWrapper from './StytchProvider';
+import { Analytics } from '@vercel/analytics/next';
+import { SpeedInsights } from '@vercel/speed-insights/next';
 
 const inter = Inter({ subsets: ['latin'] });
 
@@ -22,6 +24,8 @@ export default function RootLayout({
       <body className={inter.className} style={{ margin: 0, padding: 0 }}>
         <StytchProviderWrapper>
           {children}
+          <Analytics />
+          <SpeedInsights />
         </StytchProviderWrapper>
       </body>
     </html>

@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 
-export function middleware(request: NextRequest) {
+export function proxy(request: NextRequest) {
   // 1. Check for the Stytch Session Cookie (Created automatically by the SDK)
   const stytchSession = request.cookies.get('stytch_session')?.value;
 

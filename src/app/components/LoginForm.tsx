@@ -14,13 +14,24 @@ import {
   Locked, 
   Email, 
   Phone, 
-  FingerprintRecognition
+  FingerprintRecognition,
+  ArrowLeft
 } from '@carbon/icons-react';
-import { useState, useEffect, useRef } from 'react';
-import { useRouter } from 'next/navigation';
+import { useState, useEffect, useRef, ComponentProps } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useStytch } from '@stytch/nextjs';
+import { motion, AnimatePresence } from 'framer-motion'; // Ensure AnimatePresence is imported
 import GoogleIcon from './GoogleIcon';
 
+// --- CUSTOM COMPONENTS ---
+const BoldArrowLeft = (props: ComponentProps<typeof ArrowLeft>) => (
+  <ArrowLeft 
+    {...props} 
+    style={{ stroke: 'currentColor', strokeWidth: '1px', ...props.style }} 
+  />
+);
+
+// --- TYPES ---
 interface StytchError {
   error_type: string;
   message: string;
@@ -36,6 +47,7 @@ const isValidEmail = (email: string) => /\S+@\S+\.\S+/.test(email);
 
 export default function LoginForm() {
   const router = useRouter();
+  const searchParams = useSearchParams(); 
   const stytch = useStytch();
 
   // --- STATE ---
@@ -50,10 +62,40 @@ export default function LoginForm() {
   const [errors, setErrors] = useState<{ [key: string]: string | null }>({});
   const [notification, setNotification] = useState<NotificationState | null>(null);
 
-  const [step, setStep] = useState<'identify' | 'name_input' | 'channel_selection' | 'whatsapp_input' | 'otp' | 'create_password' | 'login'>('identify');
-  const [loading, setLoading] = useState(false);
+  const [step, setStep] = useState<'identify' | 'name_input' | 'channel_selection' | 'whatsapp_input' | 'otp' | 'create_password' | 'login' | 'forgot_password'>('identify');
   
+  // Loading state manages the spinner, Success state manages the green tick
+  const [loading, setLoading] = useState(false);
+  const [success, setSuccess] = useState(false);
+  
+  const [resetToken, setResetToken] = useState<string | null>(null);
+  
+  const tokenProcessed = useRef(false);
   const oneTapAttempted = useRef(false);
+
+  // --- 1. DETECT MAGIC LINK TOKEN ON LOAD ---
+  useEffect(() => {
+    const token = searchParams.get('token');
+
+    if (token && !tokenProcessed.current) {
+      console.log("Token detected:", token);
+      tokenProcessed.current = true; 
+      
+      const timer = window.setTimeout(() => {
+        setResetToken(token);
+        setStep('create_password'); 
+        setNotification({
+          kind: 'info',
+          title: 'Create New Password',
+          subtitle: 'Please enter your new password below.'
+        });
+      }, 0);
+
+      return () => {
+        window.clearTimeout(timer);
+      };
+    }
+  }, [searchParams]);
 
   const clearError = (field: string) => {
     if (errors[field]) setErrors((prev) => ({ ...prev, [field]: null }));
@@ -62,7 +104,7 @@ export default function LoginForm() {
 
   // --- GOOGLE ONE TAP ---
   useEffect(() => {
-    if (step === 'identify' && !oneTapAttempted.current) {
+    if (step === 'identify' && !oneTapAttempted.current && !resetToken) {
       oneTapAttempted.current = true;
       stytch.oauth.googleOneTap.start({
         login_redirect_url: 'http://localhost:3000/authenticate',
@@ -71,7 +113,7 @@ export default function LoginForm() {
         console.log("One Tap skipped:", err);
       });
     }
-  }, [stytch, step]);
+  }, [stytch, step, resetToken]);
 
   // --- HANDLERS ---
   const handleGoogleLogin = () => {
@@ -86,7 +128,8 @@ export default function LoginForm() {
     setNotification(null);
     try {
       await stytch.webauthn.authenticate({ session_duration_minutes: 60 });
-      router.push('/dashboard');
+      setLoading(false);
+      setSuccess(true);
     } catch (err) {
       console.error(err);
       setLoading(false);
@@ -195,15 +238,11 @@ export default function LoginForm() {
     }
     setLoading(true);
     try {
-      // 1. Verify OTP with Stytch (logs the user in)
       await stytch.otps.authenticate(otpCode, methodId, {
         session_duration_minutes: 60
       });
-      
-      // 2. STOP! Don't save yet. Go to password creation.
       setLoading(false);
       setStep('create_password');
-
     } catch (err) {
       console.error(err);
       setLoading(false);
@@ -215,44 +254,88 @@ export default function LoginForm() {
     }
   };
 
-  const handleCreatePassword = async (e: React.FormEvent) => {
+  const handleForgotPassword = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!password) {
-        setErrors({ password: 'Password is required' });
-        return;
+    if (!email) {
+      setErrors({ email: 'Email is required' });
+      return;
     }
+    if (!isValidEmail(email)) {
+      setErrors({ email: 'Please enter a valid email address' });
+      return;
+    }
+
+    const domain = process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000';
+
     setLoading(true);
     try {
-      const strength = await stytch.passwords.strengthCheck({ email, password });
+      await stytch.passwords.resetByEmailStart({
+        email: email,
+        login_redirect_url: `${domain}/`, 
+        reset_password_redirect_url: `${domain}/`,
+      });
+      setLoading(false);
+      setNotification({
+        kind: 'success',
+        title: 'Reset Link Sent',
+        subtitle: `Check your inbox at ${email}. Click the link to reset your password.`
+      });
+    } catch (err) {
+      console.error(err);
+      setLoading(false);
+      setNotification({
+        kind: 'error',
+        title: 'Error Sending Email',
+        subtitle: 'We could not send the reset link. Please try again later.'
+      });
+    }
+  };
+
+  const handleCreatePassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!password) { setErrors({ password: 'Password is required' }); return; }
+    
+    setLoading(true);
+    setSuccess(false);
+
+    try {
+      // 1. Check Strength
+      const emailForCheck = email || undefined;
+      const strength = await stytch.passwords.strengthCheck({ email: emailForCheck, password });
       if (!strength.valid_password) {
         setLoading(false);
         setErrors({ password: "Weak password: " + strength.feedback?.warning });
         return;
       }
       
-      // 3. Set the Password (attach to the current session)
-      const resp = await stytch.passwords.resetBySession({ password, session_duration_minutes: 60 });
+      // 2. Reset Password Logic
+      let userID = '';
+      let finalEmail = email;
+      if (resetToken) {
+         const resp = await stytch.passwords.resetByEmail({ token: resetToken, password, session_duration_minutes: 60 });
+         userID = resp.user.user_id;
+         finalEmail = resp.user.emails[0].email; 
+      } else {
+         const resp = await stytch.passwords.resetBySession({ password, session_duration_minutes: 60 });
+         userID = resp.user.user_id;
+      }
       
-      // 4. NOW Save the user to Oracle (Registration Complete)
+      // 3. Save User
       await fetch('/api/save-user', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          email: email, 
-          userID: resp.user.user_id,
-          fullName: fullName // Save the name we asked for earlier!
-        })
+        body: JSON.stringify({ email: finalEmail, userID, fullName })
       });
 
-      router.push('/dashboard'); 
+      // 4. Success Sequence
+      setLoading(false);
+      setSuccess(true); 
+
     } catch (err) {
       console.error(err);
       setLoading(false);
-      setNotification({
-        kind: 'error',
-        title: 'Error Setting Password',
-        subtitle: 'Something went wrong. Please try a different password.'
-      });
+      setSuccess(false);
+      setNotification({ kind: 'error', title: 'Error', subtitle: 'Something went wrong.' });
     }
   };
 
@@ -262,12 +345,20 @@ export default function LoginForm() {
         setErrors({ password: 'Password is required' });
         return;
     }
+    
     setLoading(true);
+    setSuccess(false); 
+
     try {
       await stytch.passwords.authenticate({ email, password, session_duration_minutes: 60 });
-      router.push('/dashboard');
+      
+      // --- SUCCESS ANIMATION SEQUENCE ---
+      setLoading(false);
+      setSuccess(true); 
+
     } catch (err: unknown) {
       setLoading(false);
+      setSuccess(false);
       console.error(err);
       
       if (typeof err === 'object' && err !== null && 'error_type' in err && (err as StytchError).error_type === 'reset_password') {
@@ -293,9 +384,8 @@ export default function LoginForm() {
     else if (step === 'otp') handleVerifyOtp(e);
     else if (step === 'create_password') handleCreatePassword(e);
     else if (step === 'login') handleLogin(e);
+    else if (step === 'forgot_password') handleForgotPassword(e); 
   };
-
-  // --- RENDER HELPERS ---
 
   const renderHeader = () => {
     let title = 'Log in';
@@ -313,6 +403,7 @@ export default function LoginForm() {
     if (step === 'channel_selection') title = 'Choose method';
     if (step === 'otp') title = 'Verification';
     if (step === 'create_password') title = 'Create password';
+    if (step === 'forgot_password') title = 'Reset password'; 
     
     const isBigHeader = step === 'login' || step === 'identify';
 
@@ -334,7 +425,6 @@ export default function LoginForm() {
             marginTop: '1rem', 
             color: '#525252', 
             fontSize: '1.125rem', 
-            fontWeight: isBigHeader ? 500 : 400,
             fontFamily: "'IBM Plex Sans', sans-serif"
           }}>
             Or get started with a new account.
@@ -355,8 +445,8 @@ export default function LoginForm() {
       <Stack gap={5}>
         <Button 
           kind="ghost" 
-          size="xl" 
-          style={{ width: '100%', border: '1px solid #8d8d8d', color: '#161616' }}
+          size="lg" 
+          style={{ width: '100%', maxWidth: '100%', border: '1px solid #8d8d8d', color: '#161616' }}
           onClick={handleGoogleLogin}
           renderIcon={GoogleIcon}
         >
@@ -364,8 +454,8 @@ export default function LoginForm() {
         </Button>
         <Button 
           kind="ghost" 
-          size="xl" 
-          style={{ width: '100%', border: '1px solid #8d8d8d', color: '#161616' }}
+          size="lg" 
+          style={{ width: '100%', maxWidth: '100%', border: '1px solid #8d8d8d', color: '#161616' }}
           onClick={handlePasskeyLogin}
           renderIcon={FingerprintRecognition}
         >
@@ -376,22 +466,35 @@ export default function LoginForm() {
   );
 
   return (
-    <div style={{ width: '100%' }}>
-      {notification && (
-        <div style={{ marginBottom: '2rem' }}>
-          <InlineNotification
-            kind={notification.kind}
-            title={notification.title}
-            subtitle={notification.subtitle}
-            onClose={() => setNotification(null)}
-            lowContrast={true}
-          />
-        </div>
-      )}
+    <div style={{ width: '100%', overflow: 'hidden' }}>
+      {/* 1. NOTIFICATIONS AREA (Animated) */}
+      <AnimatePresence>
+        {notification && (
+          <motion.div
+            initial={{ opacity: 0, height: 0, y: -20 }}
+            animate={{ opacity: 1, height: 'auto', y: 0 }}
+            exit={{ opacity: 0, height: 0, y: -20 }}
+            transition={{
+              duration: 0.24, // Carbon "Moderate-02"
+              ease: [0.2, 0, 0.38, 0.9] // Carbon "Standard Productive"
+            }}
+            style={{ marginBottom: '2rem' }}
+          >
+            <InlineNotification
+              kind={notification.kind}
+              title={notification.title}
+              subtitle={notification.subtitle}
+              onClose={() => setNotification(null)}
+              lowContrast={true}
+            />
+          </motion.div>
+        )}
+      </AnimatePresence>
 
+      {/* 2. HEADER */}
       {renderHeader()}
 
-      {/* CHANNEL SELECTION */}
+      {/* 3. MAIN FORM CONTENT */}
       {step === 'channel_selection' ? (
         <Stack gap={5}>
           <p style={{marginBottom: '1rem', fontSize: '1rem'}}>
@@ -417,19 +520,19 @@ export default function LoginForm() {
           </Button>
           <Button 
             kind="ghost" 
-            size="md"
+            hasIconOnly
+            renderIcon={BoldArrowLeft}
+            iconDescription="Go back"
+            tooltipPosition="right"
             style={{ marginTop: '1rem' }}
             onClick={() => setStep('identify')}
-          >
-            Back to login
-          </Button>
+          />
         </Stack>
       ) : (
-        /* FORM AREA */
         <Form onSubmit={handleSubmit}>
            <Stack gap={6}>
              
-             {step === 'identify' && (
+             {(step === 'identify' || step === 'forgot_password') && (
                <TextInput 
                  id="email" 
                  labelText="Email address"
@@ -442,6 +545,7 @@ export default function LoginForm() {
                    setEmail(e.target.value);
                    clearError('email');
                  }}
+                 style={{ width: '100%', maxWidth: '100%' }}
                  autoFocus
                />
              )}
@@ -459,6 +563,7 @@ export default function LoginForm() {
                    setFullName(e.target.value);
                    clearError('fullName');
                  }}
+                 style={{ width: '100%', maxWidth: '100%' }}
                  autoFocus
                />
              )}
@@ -476,6 +581,7 @@ export default function LoginForm() {
                    setPhoneNumber(e.target.value);
                    clearError('phone');
                  }}
+                 style={{ width: '100%', maxWidth: '100%' }}
                  autoFocus
                />
              )}
@@ -493,6 +599,7 @@ export default function LoginForm() {
                    setOtpCode(e.target.value);
                    clearError('otp');
                  }}
+                 style={{ width: '100%', maxWidth: '100%' }}
                  autoFocus
                />
              )}
@@ -509,47 +616,88 @@ export default function LoginForm() {
                    setPassword(e.target.value);
                    clearError('password');
                  }}
+                 style={{ width: '100%', maxWidth: '100%' }}
                  autoFocus
                />
              )}
 
-             {/* 2. MAIN ACTION BUTTON */}
-             {loading ? (
-                <div style={{ width: '100%', height: '64px', display: 'flex', alignItems: 'center' }}>
-                  <InlineLoading description="Processing..." />
-                </div>
-             ) : (
-               <Button 
-                  renderIcon={step === 'otp' ? Locked : ArrowRight} 
-                  type="submit" 
-                  size="xl" 
-                  style={{ width: '100%' }}
-                  disabled={loading}
-               >
-                 {step === 'identify' ? 'Continue' : 
-                  step === 'name_input' ? 'Next' :
-                  step === 'whatsapp_input' ? 'Send code' :
-                  step === 'otp' ? 'Verify' : 
-                  step === 'login' ? 'Sign in' : 'Set password'}
-               </Button>
-             )}
+            {/* MAIN ACTION BUTTON AREA */}
+            {loading || success ? (
+              // STATE 1: LOADING / SUCCESS (With Animation)
+              <div style={{ 
+                width: '100%', 
+                height: '3rem', 
+                display: 'flex', 
+                alignItems: 'center',
+                border: '1px solid #e0e0e0',
+                paddingLeft: '1rem'
+              }}>
+                <InlineLoading
+                  style={{ marginLeft: 0 }}
+                  description={success ? 'Success!' : 'Processing...'}
+                  status={success ? 'finished' : 'active'}
+                  onSuccess={() => router.push('/dashboard')} 
+                />
+              </div>
+            ) : (
+              // STATE 2: NORMAL BUTTON
+              <Button 
+                renderIcon={step === 'otp' ? Locked : ArrowRight} 
+                type="submit" 
+                size="lg" 
+                style={{ width: '100%', maxWidth: 'none' }}
+              >
+                {step === 'identify' ? 'Continue' : 
+                 step === 'name_input' ? 'Next' :
+                 step === 'whatsapp_input' ? 'Send code' :
+                 step === 'otp' ? 'Verify' : 
+                 step === 'login' ? 'Sign in' : 
+                 step === 'forgot_password' ? 'Send reset email' : 'Set password'}
+              </Button>
+            )}
 
-             {/* 3. CONTEXTUAL LINKS */}
+             {/* CONTEXTUAL LINKS (Back buttons, etc) */}
              {(step === 'whatsapp_input' || step === 'name_input') && (
-               <Button kind="ghost" onClick={() => setStep('identify')}>Back</Button>
+               <Button 
+                 kind="ghost" 
+                 hasIconOnly
+                 renderIcon={BoldArrowLeft}
+                 iconDescription="Back"
+                 tooltipPosition="right"
+                 onClick={() => setStep('identify')}
+               />
              )}
              
              {step === 'login' && (
                <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', alignItems: 'center' }}>
-                 <Button kind="ghost" onClick={() => alert("Forgot Password functionality coming soon!")}>Forgot password?</Button>
-                 <Button kind="ghost" onClick={() => setStep('identify')}>Back</Button>
+                 <Button kind="ghost" onClick={() => setStep('forgot_password')}>Forgot password?</Button>
+                 <Button 
+                   kind="ghost" 
+                   hasIconOnly
+                   renderIcon={BoldArrowLeft}
+                   iconDescription="Back"
+                   tooltipPosition="right"
+                   onClick={() => setStep('identify')}
+                 />
                </div>
              )}
+
+             {step === 'forgot_password' && (
+               <Button 
+                 kind="ghost" 
+                 hasIconOnly
+                 renderIcon={BoldArrowLeft}
+                 iconDescription="Back"
+                 tooltipPosition="right"
+                 onClick={() => setStep('login')}
+               />
+             )}
+
            </Stack>
         </Form>
       )}
 
-      {/* 4. ALTERNATIVE LOGINS (Only on first screen) */}
+      {/* 4. ALTERNATIVE LOGINS (Google/Passkey) */}
       {step === 'identify' && renderAlternativeLogins()}
     </div>
   );

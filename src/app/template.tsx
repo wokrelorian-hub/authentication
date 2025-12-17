@@ -3,12 +3,9 @@
 import { motion } from 'framer-motion';
 
 // CARBON MOTION TOKENS
-// Reference: https://carbondesignsystem.com/elements/motion/overview/
+const carbonDuration = 0.4; // 400ms
 
-const carbonDuration = 0.4; // 400ms (duration-slow-01)
-
-// motion(entrance, expressive): cubic-bezier(0, 0, 0.3, 1)
-// FIX 1: Explicitly typed as a tuple of 4 numbers
+// FIX: Added ': [number, number, number, number]' to satisfy Framer Motion types
 const carbonEaseIn: [number, number, number, number] = [0, 0, 0.3, 1]; 
 
 export default function Template({ children }: { children: React.ReactNode }) {
@@ -19,7 +16,7 @@ export default function Template({ children }: { children: React.ReactNode }) {
       exit={{ opacity: 0, y: -20 }}   
       transition={{
         duration: carbonDuration,
-        ease: carbonEaseIn, // FIX 2: We use this single curve for both animations
+        ease: carbonEaseIn, 
       }}
       style={{ width: '100%' }} 
     >

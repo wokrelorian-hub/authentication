@@ -7,6 +7,8 @@ import * as Sentry from "@sentry/nextjs";
 
 Sentry.init({
   dsn: "http://fa1577e5ddad011b336406a23c7f58d5@sentry.tubovideo.com:9000/3",
+  
+  enabled: false,
 
   // Define how likely traces are sampled. Adjust this value in production, or use tracesSampler for greater control.
   tracesSampleRate: 1,

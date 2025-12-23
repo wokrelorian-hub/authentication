@@ -1,6 +1,9 @@
 import { NextResponse } from 'next/server';
 import { queryOne } from '@/lib/oracle';
 
+// This tells Cloudflare to use the Edge Runtime
+export const runtime = 'edge';
+
 export async function GET() {
   try {
     // COMMAND: Show me all users in the system!

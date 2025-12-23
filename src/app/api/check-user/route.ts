@@ -12,6 +12,9 @@ interface OracleResult {
   rows: UserRow[];
 }
 
+// This tells Cloudflare to use the Edge Runtime
+export const runtime = 'edge';
+
 export async function POST(request: Request) {
   try {
     const body = await request.json();

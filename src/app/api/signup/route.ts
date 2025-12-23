@@ -7,6 +7,9 @@ const client = new stytch.Client({
   env: stytch.envs.test,
 });
 
+// This tells Cloudflare to use the Edge Runtime
+export const runtime = 'edge';
+
 export async function POST(request: Request) {
   try {
     const { email } = await request.json();

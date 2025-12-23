@@ -22,6 +22,9 @@ interface StytchEvent {
 
 const webhookSecret = process.env.STYTCH_WEBHOOK_SECRET || "";
 
+// This tells Cloudflare to use the Edge Runtime
+export const runtime = 'edge';
+
 export async function POST(req: Request) {
   const payload = await req.text();
   const headerPayload = await headers();
